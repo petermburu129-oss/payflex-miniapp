@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PayFlex</title>
+    <script>
+        // Get the referral code from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const refCode = urlParams.get('startapp') || urlParams.get('start');
+        
+        if (refCode) {
+            // Store it for the Mini App to read
+            localStorage.setItem('payflex_ref', refCode);
+        }
+        
+        // Redirect to the main app
+        window.location.href = 'https://payflex-miniapp.vercel.app';
+    </script>
+</head>
+<body>
+    <p>Loading PayFlex...</p>
+</body>
+</html>
