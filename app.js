@@ -666,7 +666,7 @@ function updateInviteModal() {
     }
     
     // USE THIS FORMAT - Telegram Mini App deep linking
-    const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
+    const referralLink = `https://t.me/PayFlexEarnBot?start=${userData.referralCode}`;
     
     document.getElementById('referralLink').value = referralLink;
     
