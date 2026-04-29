@@ -663,44 +663,24 @@ function showTab(tab) {
 }
 
 function updateInviteModal() {
-    console.log('📊 Updating invite modal...');
-    console.log('User data:', userData);
-    console.log('Referral code:', userData?.referralCode);
-    console.log('Referral count:', referralCount);
-    
-    // Check if userData exists
-    if (!userData) {
-        console.log('❌ No user data available');
-        document.getElementById('referralLink').value = 'Loading... Please wait';
+    if (!userData || !userData.referralCode) {
+        document.getElementById('referralLink').value = 'Loading... Please wait...';
         return;
     }
     
-    // Check if referralCode exists
-    if (!userData.referralCode) {
-        console.log('❌ No referral code found, generating one...');
-        userData.referralCode = 'PAYFLEX' + Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        // Save to Firebase
-        db.collection('users').doc(currentUser.id.toString()).update({
-            referralCode: userData.referralCode
-        }).then(() => {
-            console.log('✅ Referral code saved');
-        });
-    }
-    
-    // Generate the referral link
     const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
-    
-    // Update the input field
     document.getElementById('referralLink').value = referralLink;
     
-    // Update referral counts
     const count = referralCount || userData.referralCount || 0;
     document.getElementById('referralCountModal').textContent = count;
     document.getElementById('referralCount').textContent = count;
     
-    console.log('📊 Referral link generated:', referralLink);
-    console.log('📊 Referral count:', count);
+    // ADD THIS LINE for earnings
+    const earnings = (count * 0.50).toFixed(2);
+    const earningsElement = document.getElementById('referralEarnings');
+    if (earningsElement) {
+        earningsElement.textContent = `$${earnings}`;
+    }
 }
 
 function copyReferralLink() {

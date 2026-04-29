@@ -76,17 +76,47 @@
         </div>
     </div>
 
-    <!-- Invite Modal -->
+    <!-- Invite Modal - FIXED -->
     <div class="modal" id="inviteModal">
         <div class="modal-content">
-            <h3>👥 Invite Friends</h3>
-            <p>Earn $0.50 per referral!</p>
-            <div class="referral-link-container">
-                <input type="text" id="referralLink" readonly>
-                <button onclick="copyReferralLink()">Copy Link</button>
+            <h3>👥 Invite Friends & Earn</h3>
+            <p style="text-align: center; color: #0088cc; font-weight: bold; font-size: 16px;">
+                💰 Earn $0.50 per referral!
+            </p>
+            
+            <!-- Referral Link Box -->
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin: 15px 0;">
+                <p style="font-weight: bold; margin-bottom: 10px;">🔗 Your Referral Link:</p>
+                <input type="text" id="referralLink" readonly 
+                       style="width: 100%; padding: 12px; background: white; color: #333; border: 2px solid #0088cc; border-radius: 8px; font-size: 12px; font-family: monospace; margin-bottom: 10px; box-sizing: border-box;">
+                <button onclick="copyReferralLink()" 
+                        style="width: 100%; padding: 14px; background: #0088cc; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                    📋 Copy Referral Link
+                </button>
             </div>
-            <p class="referral-info">Your referrals: <span id="referralCountModal">0</span></p>
-            <button class="close-btn" onclick="closeModal('inviteModal')">Close</button>
+            
+            <!-- Referral Stats -->
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: center;">
+                <p style="font-size: 14px; margin-bottom: 5px;">Your Referrals:</p>
+                <p style="font-size: 42px; font-weight: bold; color: #4caf50; margin: 5px 0;" id="referralCountModal">0</p>
+                <p style="font-size: 13px; color: #666;">Total Earned from Referrals: <span id="referralEarnings" style="font-weight: bold; color: #4caf50;">$0.00</span></p>
+            </div>
+            
+            <!-- How it works -->
+            <div style="background: #fff3e0; padding: 15px; border-radius: 10px; margin: 15px 0;">
+                <p style="font-weight: bold; margin-bottom: 8px;">💡 How it works:</p>
+                <ol style="font-size: 13px; padding-left: 20px; margin: 0;">
+                    <li>Copy your referral link</li>
+                    <li>Share with friends</li>
+                    <li>They join PayFlex via your link</li>
+                    <li>You earn $0.50 per referral!</li>
+                </ol>
+            </div>
+            
+            <button class="close-btn" onclick="closeModal('inviteModal')" 
+                    style="width: 100%; padding: 12px; background: #ccc; color: #333; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                Close
+            </button>
         </div>
     </div>
 
