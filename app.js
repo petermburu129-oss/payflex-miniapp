@@ -35,45 +35,47 @@ const AD_WINDOW_HOURS = 3;
 // Initialize app
 async function initApp() {
     try {
-        console.log('🚀 Initializing PayFlex app...');
+        console.log('🚀 Initializing...');
         
         const initData = tg.initDataUnsafe;
-        console.log('📱 FULL init data:', JSON.stringify(initData, null, 2));
-        console.log('📱 start_param:', initData.start_param);
-        console.log('📱 Full URL:', window.location.href);
         
         if (initData && initData.user) {
             currentUser = initData.user;
-            console.log('👤 Current user ID:', currentUser.id);
-            console.log('👤 Username:', currentUser.username);
             
-            // CHECK FOR REFERRAL CODE - TRY ALL METHODS
+            // TRY EVERY POSSIBLE WAY TO GET THE REFERRAL CODE
             let referralCode = null;
             
-            // Method 1: Telegram start_param
+            // Method 1: start_param
             if (initData.start_param) {
                 referralCode = initData.start_param;
-                console.log('✅ Method 1 (start_param):', referralCode);
             }
             
-            // Method 2: URL query string
+            // Method 2: Check window.location for tgWebAppStartParam
             if (!referralCode) {
                 const urlParams = new URLSearchParams(window.location.search);
-                referralCode = urlParams.get('start') || urlParams.get('startapp') || urlParams.get('ref');
-                if (referralCode) {
-                    console.log('✅ Method 2 (URL):', referralCode);
-                }
+                referralCode = urlParams.get('tgWebAppStartParam') || 
+                               urlParams.get('start_param') ||
+                               urlParams.get('startapp');
             }
             
-            // Method 3: Parse from tgWebAppData
-            if (!referralCode && initData.query_id) {
-                console.log('📱 Checking tgWebAppData...');
+            // Method 3: Check the full URL including hash
+            if (!referralCode) {
+                const fullUrl = window.location.href;
+                const hashMatch = fullUrl.match(/tgWebAppStartParam=([^&]+)/);
+                if (hashMatch) referralCode = hashMatch[1];
             }
             
+            // Method 4: Check web_app_data
+            if (!referralCode && tg.initDataUnsafe?.start_param) {
+                referralCode = tg.initDataUnsafe.start_param;
+            }
+            
+            // Save referral code to session storage as backup
             if (referralCode) {
-                console.log('🔗 Referral code found:', referralCode);
+                sessionStorage.setItem('payflex_ref', referralCode);
             } else {
-                console.log('ℹ️ No referral code detected');
+                // Check if we stored one earlier
+                referralCode = sessionStorage.getItem('payflex_ref');
             }
             
             await loadUserData(referralCode);
@@ -84,11 +86,10 @@ async function initApp() {
             setupReferralListener();
             
         } else {
-            console.error('❌ No user data in initData');
-            showToast('Please open this app from Telegram');
+            showToast('Please open from Telegram');
         }
     } catch (error) {
-        console.error('❌ Init error:', error);
+        console.error('Error:', error);
     }
 }
 
