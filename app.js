@@ -48,10 +48,10 @@ async function initApp() {
             // CHECK FOR REFERRAL IN TELEGRAM START PARAMETER
             let referralCode = null;
             
-            // Method 1: Check startapp parameter
+            // Method 1: Check startapp parameter from Telegram
             if (initData.start_param) {
                 referralCode = initData.start_param;
-                console.log('🔗 Found start_param:', referralCode);
+                console.log('🔗 Found Telegram start_param:', referralCode);
             }
             
             // Method 2: Check URL parameters (fallback)
@@ -72,6 +72,10 @@ async function initApp() {
                     referralCode = match[1];
                     console.log('🔗 Extracted from URL:', referralCode);
                 }
+            }
+            
+            if (!referralCode) {
+                console.log('ℹ️ No referral code detected');
             }
             
             await loadUserData(referralCode);
@@ -142,6 +146,12 @@ async function loadUserData(referralCode) {
             console.log('   Referral count:', userData.referralCount);
             console.log('   Already referred by:', userData.referredBy);
             referralCount = userData.referralCount || 0;
+            
+            // If this user hasn't been referred yet and has a referral code
+            if (!userData.referredBy && referralCode) {
+                console.log('🔗 Existing user clicking referral link:', referralCode);
+                await processReferral(referralCode);
+            }
         } else {
             console.log('🆕 Creating new user...');
             const newReferralCode = generateReferralCode();
@@ -223,7 +233,7 @@ function generateReferralCode() {
     return code;
 }
 
-// Process referral - COMPLETELY REWRITTEN
+// Process referral
 async function processReferral(refCode) {
     try {
         console.log('🔄 Processing referral code:', refCode);
@@ -243,7 +253,6 @@ async function processReferral(refCode) {
         
         if (snapshot.empty) {
             console.log('❌ No user found with referral code:', refCode);
-            console.log('   This means the referral code is invalid');
             return;
         }
         
@@ -267,7 +276,7 @@ async function processReferral(refCode) {
             .get();
         
         if (!existingReferral.empty) {
-            console.log('❌ Current user was already referred by someone');
+            console.log('❌ Current user was already referred');
             return;
         }
         
@@ -656,12 +665,16 @@ function showTab(tab) {
 function updateInviteModal() {
     if (!userData || !userData.referralCode) return;
     
+    // ✅ UPDATED WITH NEW BOT USERNAME
     const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
     document.getElementById('referralLink').value = referralLink;
     
     const count = referralCount || userData.referralCount || 0;
     document.getElementById('referralCountModal').textContent = count;
     document.getElementById('referralCount').textContent = count;
+    
+    console.log('📊 Invite modal - Referral link:', referralLink);
+    console.log('📊 Invite modal - Referral count:', count);
 }
 
 function copyReferralLink() {
