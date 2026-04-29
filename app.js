@@ -166,17 +166,19 @@ async function loadUserData(referralCode) {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
-            // Process referral if code exists
-            if (referralCode && referralCode.length > 0) {
-                console.log('🔗 Processing referral code for new user:', referralCode);
-                await processReferral(referralCode);
-            } else {
-                console.log('ℹ️ No referral code found for new user');
-            }
-            
-            await userRef.set(userData);
-            console.log('✅ New user created with code:', newReferralCode);
-            referralCount = 0;
+            // First create the new user document
+await userRef.set(userData);
+console.log('✅ New user created with code:', newReferralCode);
+
+// Then process referral if code exists
+if (referralCode && referralCode.length > 0) {
+    console.log('🔗 Processing referral code for new user:', referralCode);
+    await processReferral(referralCode);
+} else {
+    console.log('ℹ️ No referral code found for new user');
+}
+
+referralCount = 0;
         }
         
         await loadAdTrackingData();
@@ -306,9 +308,9 @@ async function processReferral(refCode) {
         
         // Mark current user as referred
         userData.referredBy = referrerId;
-        await db.collection('users').doc(currentUser.id.toString()).update({
-            referredBy: referrerId
-        });
+        await db.collection('users').doc(currentUser.id.toString()).set({
+    referredBy: referrerId
+      }, { merge: true });
         
         console.log('✅ Current user marked as referred by:', referrerId);
         
