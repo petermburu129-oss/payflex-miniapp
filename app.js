@@ -668,7 +668,7 @@ function updateInviteModal() {
         return;
     }
     
-    const referralLink = `const referralLink = `https://t.me/PayFlexEarnBot?start=${userData.referralCode}`;`;
+    const referralLink = `https://t.me/PayFlexEarnBot?start=${userData.referralCode}`;
     document.getElementById('referralLink').value = referralLink;
     
     const count = referralCount || userData.referralCount || 0;
