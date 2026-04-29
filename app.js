@@ -9,9 +9,24 @@ let adsWatchedInWindow = 0;
 let adWatchWindowStart = null;
 let lastAdWatchTime = null;
 
-// Smart Links
-const SMARTLINK_1 = "https://omg10.com/4/8629588";
-const SMARTLINK_2 = "https://omg10.com/4/8627792";
+// Smart Links - Updated with all 11 links
+const SMARTLINKS = {
+    watchAd: "https://omg10.com/4/8627792", // Smart link 2 for watch ad
+    tasks: [
+        "https://omg10.com/4/8629588",  // Task 1 - Smart link 1
+        "https://omg10.com/4/10942086", // Task 2 - Smart link 3
+        "https://omg10.com/4/10942064", // Task 3 - Smart link 4
+        "https://omg10.com/4/10942063", // Task 4 - Smart link 5
+        "https://omg10.com/4/10942065", // Task 5 - Smart link 6
+        "https://omg10.com/4/10942067", // Task 6 - Smart link 7
+        "https://omg10.com/4/10942066", // Task 7 - Smart link 8
+        "https://omg10.com/4/10286779", // Task 8 - Smart link 9
+        "https://omg10.com/4/10921529", // Task 9 - Smart link 10
+        "https://omg10.com/4/10286778", // Task 10 - Smart link 11
+    ],
+    telegram: "https://t.me/+TCJNKW2sFFc2YWY0",
+    youtube: "https://www.youtube.com/@hummingbirdtvke2255"
+};
 
 // Ad watching limits
 const MAX_ADS_PER_WINDOW = 10;
@@ -25,6 +40,7 @@ async function initApp() {
         if (initData && initData.user) {
             currentUser = initData.user;
             await loadUserData();
+            await loadReferralCount(); // Load referral count separately
             updateUI();
             startTaskTimers();
             startAdWindowTimer();
@@ -61,7 +77,7 @@ async function loadUserData() {
             
             // Check for referral
             const urlParams = new URLSearchParams(window.location.search);
-            const refCode = urlParams.get('ref');
+            const refCode = urlParams.get('startapp') || urlParams.get('ref');
             if (refCode) {
                 await processReferral(refCode);
             }
@@ -76,6 +92,30 @@ async function loadUserData() {
     }
 }
 
+// Load referral count from referrals collection
+async function loadReferralCount() {
+    try {
+        const referralsRef = db.collection('referrals');
+        const snapshot = await referralsRef
+            .where('referrerId', '==', currentUser.id.toString())
+            .get();
+        
+        const actualReferralCount = snapshot.size;
+        
+        // Update if different from stored value
+        if (userData.referralCount !== actualReferralCount) {
+            userData.referralCount = actualReferralCount;
+            await db.collection('users').doc(currentUser.id.toString()).update({
+                referralCount: actualReferralCount
+            });
+        }
+        
+        console.log(`Referral count loaded: ${actualReferralCount}`);
+    } catch (error) {
+        console.error('Error loading referral count:', error);
+    }
+}
+
 // Generate referral code
 function generateReferralCode() {
     return 'PAYFLEX' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -84,6 +124,12 @@ function generateReferralCode() {
 // Process referral
 async function processReferral(refCode) {
     try {
+        // Prevent self-referral by checking if the refCode matches current user's code
+        if (userData.referralCode === refCode) {
+            console.log('Self-referral detected and blocked');
+            return;
+        }
+        
         // Find referrer
         const usersRef = db.collection('users');
         const snapshot = await usersRef.where('referralCode', '==', refCode).limit(1).get();
@@ -92,39 +138,52 @@ async function processReferral(refCode) {
             const referrerDoc = snapshot.docs[0];
             const referrerId = referrerDoc.id;
             
-            // Prevent self-referral
+            // Prevent self-referral by ID
             if (referrerId === currentUser.id.toString()) {
                 console.log('Self-referral detected and blocked');
                 return;
             }
             
-            // Check if already referred
-            const referralRef = db.collection('referrals').doc(`${referrerId}_${currentUser.id}`);
-            const referralDoc = await referralRef.get();
+            // Check if already referred (prevent multiple referrals)
+            const existingReferral = await db.collection('referrals')
+                .where('referredId', '==', currentUser.id.toString())
+                .limit(1)
+                .get();
             
-            if (!referralDoc.exists) {
-                // Create referral record
-                await referralRef.set({
-                    referrerId: referrerId,
-                    referredId: currentUser.id.toString(),
-                    reward: 0.5,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Update referrer's balance
-                await db.collection('users').doc(referrerId).update({
-                    balance: firebase.firestore.FieldValue.increment(0.5),
-                    referralCount: firebase.firestore.FieldValue.increment(1)
-                });
-                
-                // Update current user
-                userData.referredBy = referrerId;
-                await db.collection('users').doc(currentUser.id.toString()).update({
-                    referredBy: referrerId
-                });
-                
-                showToast('Welcome! You were referred successfully.');
+            if (!existingReferral.empty) {
+                console.log('User already referred');
+                return;
             }
+            
+            // Create referral record
+            const referralRef = db.collection('referrals').doc(`${referrerId}_${currentUser.id}`);
+            
+            await referralRef.set({
+                referrerId: referrerId,
+                referredId: currentUser.id.toString(),
+                referredUsername: currentUser.username || currentUser.first_name,
+                reward: 0.5,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'completed'
+            });
+            
+            // Update referrer's balance and count
+            await db.collection('users').doc(referrerId).update({
+                balance: firebase.firestore.FieldValue.increment(0.5),
+                referralCount: firebase.firestore.FieldValue.increment(1)
+            });
+            
+            // Update current user
+            userData.referredBy = referrerId;
+            await db.collection('users').doc(currentUser.id.toString()).update({
+                referredBy: referrerId
+            });
+            
+            // Reload referral count for referrer
+            const referrerData = (await db.collection('users').doc(referrerId).get()).data();
+            console.log(`Referral processed. ${referrerData.firstName} now has ${referrerData.referralCount} referrals`);
+            
+            showToast('Welcome! You were referred successfully.');
         }
     } catch (error) {
         console.error('Error processing referral:', error);
@@ -154,7 +213,7 @@ async function loadAdTrackingData() {
             const earliestAd = ads[ads.length - 1].data();
             adWatchWindowStart = earliestAd.timestamp.toDate();
             
-            // Get the latest ad for cooldown
+            // Get the latest ad for tracking
             lastAdWatchTime = ads[0].data().timestamp.toDate();
         }
         
@@ -167,8 +226,8 @@ async function loadAdTrackingData() {
 // Start ad window timer
 function startAdWindowTimer() {
     updateAdWindowStatus();
-    // Check every minute
-    setInterval(updateAdWindowStatus, 60000);
+    // Check every 30 seconds
+    setInterval(updateAdWindowStatus, 30000);
 }
 
 // Update ad window status
@@ -214,7 +273,7 @@ function updateAdWatchButton() {
     
     if (adsWatchedInWindow >= MAX_ADS_PER_WINDOW) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="btn-icon">📺</span> Daily Limit Reached';
+        btn.innerHTML = '<span class="btn-icon">📺</span> Limit Reached';
         return;
     }
     
@@ -303,8 +362,8 @@ async function watchAd() {
             totalAdsWatched: firebase.firestore.FieldValue.increment(1)
         });
         
-        // Open smartlink after recording
-        window.open(SMARTLINK_2, '_blank');
+        // Open smartlink AFTER recording (important for tracking)
+        window.open(SMARTLINKS.watchAd, '_blank');
         
         // Update local data
         userData.balance += 0.05;
@@ -315,9 +374,9 @@ async function watchAd() {
         updateUI();
         
         const remaining = MAX_ADS_PER_WINDOW - adsWatchedInWindow;
-        showToast(`+$0.05 earned! (${remaining} ads remaining)`);
+        showToast(`+$0.05 earned! (${remaining} ads remaining in this window)`);
         
-        // Re-enable button after short delay with updated status
+        // Re-enable button after delay with updated status
         setTimeout(() => {
             btn.disabled = false;
             updateAdWatchButton();
@@ -336,6 +395,11 @@ async function watchAd() {
 async function completeTask(taskId, taskName) {
     try {
         const btn = document.getElementById(`task-btn-${taskId}`);
+        if (!btn) {
+            console.error(`Button for task ${taskId} not found`);
+            return;
+        }
+        
         if (btn.disabled) {
             showToast('Task already completed today!');
             return;
@@ -354,25 +418,28 @@ async function completeTask(taskId, taskName) {
         btn.disabled = true;
         btn.textContent = 'Processing...';
         
-        // Open appropriate link
-        let linkOpened = false;
-        if (taskId <= 13) {
-            window.open(SMARTLINK_1, '_blank');
-            linkOpened = true;
-        } else if (taskId === 14) {
-            window.open('https://t.me/+TCJNKW2sFFc2YWY0', '_blank');
-            linkOpened = true;
-        } else if (taskId === 15) {
-            window.open('https://www.youtube.com/@hummingbirdtvke2255', '_blank');
-            linkOpened = true;
+        // Determine which link to open based on task ID
+        let linkToOpen;
+        if (taskId <= 10) {
+            // Tasks 1-10 use smartlinks
+            linkToOpen = SMARTLINKS.tasks[taskId - 1];
+        } else if (taskId === 11) {
+            // Task 11 - Telegram channel
+            linkToOpen = SMARTLINKS.telegram;
+        } else if (taskId === 12) {
+            // Task 12 - YouTube channel
+            linkToOpen = SMARTLINKS.youtube;
         }
         
-        if (!linkOpened) {
-            showToast('Error opening task link');
+        if (!linkToOpen) {
+            showToast('Error: Invalid task link');
             btn.disabled = false;
             btn.textContent = 'Start';
             return;
         }
+        
+        // Open the link
+        window.open(linkToOpen, '_blank');
         
         // Record task completion
         if (!userData.tasksCompleted) {
@@ -380,7 +447,8 @@ async function completeTask(taskId, taskName) {
         }
         userData.tasksCompleted[taskKey] = {
             completedAt: new Date().toISOString(),
-            taskName: taskName
+            taskName: taskName,
+            linkUsed: linkToOpen
         };
         
         // Update Firebase
@@ -399,7 +467,7 @@ async function completeTask(taskId, taskName) {
         
     } catch (error) {
         console.error('Error completing task:', error);
-        showToast('Error completing task');
+        showToast('Error completing task. Please try again.');
         const btn = document.getElementById(`task-btn-${taskId}`);
         if (btn) {
             btn.disabled = false;
@@ -412,24 +480,23 @@ async function completeTask(taskId, taskName) {
 function startTaskTimers() {
     const today = new Date().toDateString();
     
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 12; i++) {
         const taskKey = `${i}_${today}`;
         
         if (userData.tasksCompleted && userData.tasksCompleted[taskKey]) {
             startTaskTimer(i, taskKey);
         } else {
-            // Check if task was completed in previous days
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayKey = `${i}_${yesterday.toDateString()}`;
-            
-            if (userData.tasksCompleted && userData.tasksCompleted[yesterdayKey]) {
-                const completedTime = new Date(userData.tasksCompleted[yesterdayKey].completedAt);
-                const resetTime = new Date(completedTime.getTime() + (24 * 60 * 60 * 1000));
-                
-                if (new Date() < resetTime) {
-                    // Still in cooldown
-                    startTaskTimer(i, taskKey, completedTime);
+            // Check if task was completed recently (within 24 hours)
+            for (const [key, value] of Object.entries(userData.tasksCompleted || {})) {
+                if (key.startsWith(`${i}_`)) {
+                    const completedTime = new Date(value.completedAt);
+                    const resetTime = new Date(completedTime.getTime() + (24 * 60 * 60 * 1000));
+                    
+                    if (new Date() < resetTime) {
+                        // Still in cooldown
+                        startTaskTimer(i, taskKey, completedTime);
+                    }
+                    break;
                 }
             }
         }
@@ -473,11 +540,6 @@ function updateTaskTimerDisplay(taskId, completionTimestamp) {
         btn.disabled = false;
         btn.textContent = 'Start';
         timerSpan.textContent = '';
-        
-        // Clean up old task data
-        const today = new Date().toDateString();
-        const taskKey = `${taskId}_${today}`;
-        delete userData.tasksCompleted[taskKey];
         return;
     }
     
@@ -494,15 +556,24 @@ function updateTaskTimerDisplay(taskId, completionTimestamp) {
     setTimeout(() => updateTaskTimerDisplay(taskId, completionTimestamp), 1000);
 }
 
-// Generate task list
+// Generate task list - Updated with 12 tasks
 function generateTasks() {
     const tasksList = document.getElementById('tasksList');
+    
+    // 12 tasks: 10 smartlink tasks + Telegram + YouTube
     const tasks = [
-        'Visit Website A', 'Complete Survey B', 'Download App C',
-        'Sign Up on Platform D', 'Watch Video E', 'Read Article F',
-        'Test App G', 'Review Product H', 'Share Post I',
-        'Like Page J', 'Follow Account K', 'Comment on Post L',
-        'Subscribe to Newsletter M', 'Join Telegram Channel', 'Subscribe to YouTube'
+        { name: 'Complete Offer 1', type: 'smartlink' },
+        { name: 'Complete Offer 2', type: 'smartlink' },
+        { name: 'Complete Offer 3', type: 'smartlink' },
+        { name: 'Complete Offer 4', type: 'smartlink' },
+        { name: 'Complete Offer 5', type: 'smartlink' },
+        { name: 'Complete Offer 6', type: 'smartlink' },
+        { name: 'Complete Offer 7', type: 'smartlink' },
+        { name: 'Complete Offer 8', type: 'smartlink' },
+        { name: 'Complete Offer 9', type: 'smartlink' },
+        { name: 'Complete Offer 10', type: 'smartlink' },
+        { name: '📢 Join Telegram Channel', type: 'telegram' },
+        { name: '▶️ Subscribe to YouTube', type: 'youtube' }
     ];
     
     tasksList.innerHTML = '';
@@ -511,13 +582,18 @@ function generateTasks() {
         const taskId = index + 1;
         const taskItem = document.createElement('div');
         taskItem.className = 'task-item';
+        
+        let icon = '🔗';
+        if (task.type === 'telegram') icon = '📢';
+        if (task.type === 'youtube') icon = '▶️';
+        
         taskItem.innerHTML = `
             <div class="task-info">
-                <span class="task-name">${task}</span>
+                <span class="task-name">${icon} ${task.name}</span>
                 <span class="task-reward">+$0.10</span>
                 <span class="task-timer" id="timer-${taskId}"></span>
             </div>
-            <button class="task-btn" id="task-btn-${taskId}" onclick="completeTask(${taskId}, '${task}')">
+            <button class="task-btn" id="task-btn-${taskId}" onclick="completeTask(${taskId}, '${task.name.replace(/'/g, "\\'")}')">
                 Start
             </button>
         `;
@@ -530,50 +606,68 @@ function showTab(tab) {
     const navBtns = document.querySelectorAll('.nav-btn');
     navBtns.forEach(btn => btn.classList.remove('active'));
     
+    // Hide all modals first
+    document.getElementById('inviteModal').style.display = 'none';
+    document.getElementById('moreModal').style.display = 'none';
+    
     if (tab === 'tasks') {
         document.querySelector('.tasks-section').style.display = 'block';
-        document.getElementById('inviteModal').style.display = 'none';
-        document.getElementById('moreModal').style.display = 'none';
         document.querySelector('.nav-btn:nth-child(1)').classList.add('active');
     } else if (tab === 'invite') {
         document.getElementById('inviteModal').style.display = 'flex';
-        document.getElementById('moreModal').style.display = 'none';
         document.querySelector('.nav-btn:nth-child(2)').classList.add('active');
         updateInviteModal();
     } else if (tab === 'more') {
         document.getElementById('moreModal').style.display = 'flex';
-        document.getElementById('inviteModal').style.display = 'none';
         document.querySelector('.nav-btn:nth-child(3)').classList.add('active');
     }
 }
 
-// Update invite modal
+// Update invite modal - FIXED with proper referral count
 function updateInviteModal() {
     if (!userData || !userData.referralCode) return;
     
+    // Use the correct format for Telegram mini app deep linking
     const referralLink = `https://t.me/PayFlex01Bot/PayFlex?startapp=${userData.referralCode}`;
     document.getElementById('referralLink').value = referralLink;
-    document.getElementById('referralCountModal').textContent = userData.referralCount || 0;
+    
+    // Show actual referral count from loaded data
+    const count = userData.referralCount || 0;
+    document.getElementById('referralCountModal').textContent = count;
+    document.getElementById('referralCount').textContent = count;
+    
+    console.log('Invite modal updated. Referral count:', count);
 }
 
-// Copy referral link - FIXED
+// Copy referral link - Multiple methods for compatibility
 function copyReferralLink() {
     const linkInput = document.getElementById('referralLink');
+    const linkText = linkInput.value;
     
-    // Modern clipboard API
+    // Method 1: Modern clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(linkInput.value)
+        navigator.clipboard.writeText(linkText)
             .then(() => {
-                showToast('✅ Referral link copied!');
+                showToast('✅ Referral link copied! Share with friends to earn $0.50 each.');
             })
             .catch(err => {
-                console.error('Clipboard error:', err);
-                // Fallback method
-                fallbackCopyText(linkInput.value);
+                console.error('Clipboard API error:', err);
+                // Try fallback
+                fallbackCopyText(linkText);
             });
-    } else {
-        // Fallback for older browsers or Telegram webview
-        fallbackCopyText(linkInput.value);
+    } 
+    // Method 2: For Telegram WebView
+    else if (window.TelegramWebviewProxy) {
+        try {
+            window.TelegramWebviewProxy.postEvent('clipboard_text_received', { data: linkText });
+            showToast('✅ Referral link copied!');
+        } catch(e) {
+            fallbackCopyText(linkText);
+        }
+    }
+    // Method 3: Fallback
+    else {
+        fallbackCopyText(linkText);
     }
 }
 
@@ -589,14 +683,16 @@ function fallbackCopyText(text) {
         // Try execCommand
         const successful = document.execCommand('copy');
         if (successful) {
-            showToast('✅ Referral link copied!');
+            showToast('✅ Referral link copied! Share with friends to earn $0.50 each.');
         } else {
-            showToast('❌ Failed to copy. Link: ' + text);
+            // Last resort - show the link
+            prompt('Copy this referral link:', text);
+            showToast('📋 Copy the link manually to share');
         }
     } catch (err) {
         console.error('Fallback copy error:', err);
         // Show the link in a prompt as last resort
-        showToast('📋 Manual copy: ' + text);
+        prompt('Copy this referral link:', text);
     }
 }
 
@@ -624,7 +720,7 @@ async function requestWithdrawal(event) {
     }
     
     // Confirm withdrawal
-    if (!confirm(`Confirm withdrawal of $${amount.toFixed(2)} via ${method}?`)) {
+    if (!confirm(`Confirm withdrawal of $${amount.toFixed(2)} via ${method}?\n\nAccount: ${accountDetails}`)) {
         return;
     }
     
@@ -633,6 +729,7 @@ async function requestWithdrawal(event) {
         await db.collection('withdrawals').add({
             userId: currentUser.id.toString(),
             username: currentUser.username || currentUser.first_name,
+            firstName: currentUser.first_name || '',
             method: method,
             accountDetails: accountDetails,
             amount: amount,
@@ -660,6 +757,11 @@ async function requestWithdrawal(event) {
     }
 }
 
+// Show withdrawal history (placeholder)
+function showWithdrawalHistory() {
+    showToast('📊 Withdrawal history coming soon!');
+}
+
 // Close modal
 function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
@@ -678,12 +780,12 @@ function showToast(message) {
     toast.textContent = message;
     document.body.appendChild(toast);
     
-    // Remove after 3 seconds
+    // Remove after 4 seconds
     setTimeout(() => {
         if (toast.parentNode) {
             toast.remove();
         }
-    }, 3000);
+    }, 4000);
 }
 
 // Event Listeners
@@ -712,9 +814,17 @@ window.onload = () => {
     generateTasks();
 };
 
-// Periodic UI update for ad window timer
+// Periodic UI update
 setInterval(() => {
     if (userData) {
         updateAdWindowStatus();
+        // Reload referral count periodically
+        loadReferralCount().then(() => {
+            document.getElementById('referralCount').textContent = userData.referralCount || 0;
+            const modalCount = document.getElementById('referralCountModal');
+            if (modalCount) {
+                modalCount.textContent = userData.referralCount || 0;
+            }
+        });
     }
-}, 30000); // Update every 30 seconds
+}, 60000); // Update every minute
