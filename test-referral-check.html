@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Referral Check</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .box { background: #2a2a2a; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #0088cc; }
+        .success { color: #4caf50; }
+        .error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Referral Test</h1>
+    
+    <div class="box">
+        <h3>Init Data:</h3>
+        <pre id="init"></pre>
+    </div>
+    
+    <div class="box">
+        <h3>Referral Code Detected:</h3>
+        <pre id="code"></pre>
+    </div>
+    
+    <div class="box">
+        <h3>Status:</h3>
+        <pre id="status">Checking...</pre>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const initData = tg.initDataUnsafe;
+        
+        document.getElementById('init').textContent = JSON.stringify(initData, null, 2);
+        
+        let refCode = null;
+        
+        if (initData.start_param) {
+            refCode = initData.start_param;
+        }
+        
+        if (!refCode) {
+            const urlParams = new URLSearchParams(window.location.search);
+            refCode = urlParams.get('startapp');
+        }
+        
+        document.getElementById('code').textContent = refCode || 'NO CODE FOUND';
+        document.getElementById('code').className = refCode ? 'success' : 'error';
+        
+        if (refCode && initData.user) {
+            document.getElementById('status').textContent = 'Processing referral: ' + refCode;
+            processReferral(refCode, initData.user);
+        } else {
+            document.getElementById('status').textContent = 'No referral to process';
+        }
+        
+        async function processReferral(refCode, user) {
+            try {
+                const snapshot = await db.collection('users')
+                    .where('referralCode', '==', refCode)
+                    .limit(1)
+                    .get();
+                
+                if (snapshot.empty) {
+                    document.getElementById('status').textContent = 'ERROR: No user found with code: ' + refCode;
+                    return;
+                }
+                
+                const referrerDoc = snapshot.docs[0];
+                const referrerId = referrerDoc.id;
+                const referrerData = referrerDoc.data();
+                
+                if (referrerId === user.id.toString()) {
+                    document.getElementById('status').textContent = 'BLOCKED: Self-referral';
+                    return;
+                }
+                
+                const existing = await db.collection('referrals')
+                    .where('referredId', '==', user.id.toString())
+                    .limit(1)
+                    .get();
+                
+                if (!existing.empty) {
+                    document.getElementById('status').textContent = 'BLOCKED: Already referred';
+                    return;
+                }
+                
+                await db.collection('referrals').doc(`${referrerId}_${user.id}`).set({
+                    referrerId: referrerId,
+                    referredId: user.id.toString(),
+                    referredUsername: user.username || '',
+                    referredFirstName: user.first_name || '',
+                    reward: 0.5,
+                    status: 'completed',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                await db.collection('users').doc(referrerId).update({
+                    balance: firebase.firestore.FieldValue.increment(0.5),
+                    referralCount: firebase.firestore.FieldValue.increment(1)
+                });
+                
+                document.getElementById('status').textContent = 'SUCCESS! Referral added. Referrer: ' + referrerData.firstName;
+                document.getElementById('status').className = 'success';
+                
+            } catch (error) {
+                document.getElementById('status').textContent = 'ERROR: ' + error.message;
+                document.getElementById('status').className = 'error';
+            }
+        }
+    </script>
+</body>
+</html>
