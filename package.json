@@ -1,0 +1,9 @@
+{
+  "name": "payflex-miniapp",
+  "version": "1.0.0",
+  "description": "PayFlex Telegram Mini App",
+  "main": "index.html",
+  "scripts": {
+    "start": "netlify dev"
+  }
+}
