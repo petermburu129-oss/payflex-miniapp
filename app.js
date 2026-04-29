@@ -38,43 +38,41 @@ async function initApp() {
         console.log('🚀 Initializing PayFlex app...');
         
         const initData = tg.initDataUnsafe;
-        console.log('📱 Full init data:', JSON.stringify(initData, null, 2));
+        console.log('📱 FULL init data:', JSON.stringify(initData, null, 2));
+        console.log('📱 start_param:', initData.start_param);
+        console.log('📱 Full URL:', window.location.href);
         
         if (initData && initData.user) {
             currentUser = initData.user;
             console.log('👤 Current user ID:', currentUser.id);
-            console.log('👤 Current user:', currentUser.first_name, currentUser.username);
+            console.log('👤 Username:', currentUser.username);
             
-            // CHECK FOR REFERRAL IN TELEGRAM START PARAMETER
+            // CHECK FOR REFERRAL CODE - TRY ALL METHODS
             let referralCode = null;
             
-            // Method 1: Check startapp parameter from Telegram
+            // Method 1: Telegram start_param
             if (initData.start_param) {
                 referralCode = initData.start_param;
-                console.log('🔗 Found Telegram start_param:', referralCode);
+                console.log('✅ Method 1 (start_param):', referralCode);
             }
             
-            // Method 2: Check URL parameters (fallback)
+            // Method 2: URL query string
             if (!referralCode) {
                 const urlParams = new URLSearchParams(window.location.search);
-                referralCode = urlParams.get('startapp') || urlParams.get('start') || urlParams.get('ref');
+                referralCode = urlParams.get('start') || urlParams.get('startapp') || urlParams.get('ref');
                 if (referralCode) {
-                    console.log('🔗 Found URL parameter:', referralCode);
+                    console.log('✅ Method 2 (URL):', referralCode);
                 }
             }
             
-            // Method 3: Check the full URL
-            if (!referralCode) {
-                const fullUrl = window.location.href;
-                console.log('📍 Full URL:', fullUrl);
-                const match = fullUrl.match(/startapp=([^&]+)/);
-                if (match) {
-                    referralCode = match[1];
-                    console.log('🔗 Extracted from URL:', referralCode);
-                }
+            // Method 3: Parse from tgWebAppData
+            if (!referralCode && initData.query_id) {
+                console.log('📱 Checking tgWebAppData...');
             }
             
-            if (!referralCode) {
+            if (referralCode) {
+                console.log('🔗 Referral code found:', referralCode);
+            } else {
                 console.log('ℹ️ No referral code detected');
             }
             
@@ -85,14 +83,12 @@ async function initApp() {
             startAdWindowTimer();
             setupReferralListener();
             
-            console.log('✅ App initialized successfully');
         } else {
-            console.error('❌ No user data. Full init data:', initData);
+            console.error('❌ No user data in initData');
             showToast('Please open this app from Telegram');
         }
     } catch (error) {
-        console.error('❌ Initialization error:', error);
-        showToast('Error initializing app');
+        console.error('❌ Init error:', error);
     }
 }
 
@@ -664,22 +660,23 @@ function showTab(tab) {
 
 function updateInviteModal() {
     if (!userData || !userData.referralCode) {
-        document.getElementById('referralLink').value = 'Loading... Please wait...';
+        document.getElementById('referralLink').value = 'Loading...';
         return;
     }
     
-    const referralLink = `https://t.me/PayFlexEarnBot?start=${userData.referralCode}`;
+    // USE THIS FORMAT - Telegram Mini App deep linking
+    const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
+    
     document.getElementById('referralLink').value = referralLink;
     
     const count = referralCount || userData.referralCount || 0;
     document.getElementById('referralCountModal').textContent = count;
     document.getElementById('referralCount').textContent = count;
     
-    // ADD THIS LINE for earnings
     const earnings = (count * 0.50).toFixed(2);
     const earningsElement = document.getElementById('referralEarnings');
     if (earningsElement) {
-        earningsElement.textContent = `$${earnings}`;
+        earningsElement.textContent = '$' + earnings;
     }
 }
 
