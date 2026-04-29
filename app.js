@@ -663,33 +663,93 @@ function showTab(tab) {
 }
 
 function updateInviteModal() {
-    if (!userData || !userData.referralCode) return;
+    console.log('📊 Updating invite modal...');
+    console.log('User data:', userData);
+    console.log('Referral code:', userData?.referralCode);
+    console.log('Referral count:', referralCount);
     
-    // ✅ UPDATED WITH NEW BOT USERNAME
+    // Check if userData exists
+    if (!userData) {
+        console.log('❌ No user data available');
+        document.getElementById('referralLink').value = 'Loading... Please wait';
+        return;
+    }
+    
+    // Check if referralCode exists
+    if (!userData.referralCode) {
+        console.log('❌ No referral code found, generating one...');
+        userData.referralCode = 'PAYFLEX' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        // Save to Firebase
+        db.collection('users').doc(currentUser.id.toString()).update({
+            referralCode: userData.referralCode
+        }).then(() => {
+            console.log('✅ Referral code saved');
+        });
+    }
+    
+    // Generate the referral link
     const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
+    
+    // Update the input field
     document.getElementById('referralLink').value = referralLink;
     
+    // Update referral counts
     const count = referralCount || userData.referralCount || 0;
     document.getElementById('referralCountModal').textContent = count;
     document.getElementById('referralCount').textContent = count;
     
-    console.log('📊 Invite modal - Referral link:', referralLink);
-    console.log('📊 Invite modal - Referral count:', count);
+    console.log('📊 Referral link generated:', referralLink);
+    console.log('📊 Referral count:', count);
 }
 
 function copyReferralLink() {
     const linkInput = document.getElementById('referralLink');
     const linkText = linkInput.value;
     
+    console.log('📋 Copying link:', linkText);
+    
+    if (!linkText || linkText === '') {
+        showToast('❌ No link to copy. Please wait...');
+        return;
+    }
+    
+    // Try modern clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(linkText)
-            .then(() => showToast('✅ Referral link copied!'))
-            .catch(() => fallbackCopyText(linkText));
+            .then(() => {
+                showToast('✅ Referral link copied!');
+                console.log('✅ Copied successfully');
+            })
+            .catch((err) => {
+                console.log('Clipboard error, trying fallback:', err);
+                fallbackCopyText(linkText);
+            });
     } else {
         fallbackCopyText(linkText);
     }
 }
 
+function fallbackCopyText(text) {
+    const linkInput = document.getElementById('referralLink');
+    
+    // Select the text
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999);
+    linkInput.focus();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showToast('✅ Referral link copied!');
+        } else {
+            showToast('📋 Please manually copy the link');
+        }
+    } catch (err) {
+        console.error('Fallback failed:', err);
+        showToast('📋 Link: ' + text);
+    }
+}
 function fallbackCopyText(text) {
     const linkInput = document.getElementById('referralLink');
     linkInput.select();
