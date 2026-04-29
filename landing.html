@@ -2,21 +2,29 @@
 <html>
 <head>
     <title>PayFlex</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="background: #0088cc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial;">
+    <div style="text-align: center; color: white;">
+        <h1>💰 PayFlex</h1>
+        <p>Opening your earning dashboard...</p>
+    </div>
+    
     <script>
         // Get the referral code from URL
         const urlParams = new URLSearchParams(window.location.search);
         const refCode = urlParams.get('startapp') || urlParams.get('start');
         
+        // Store it for the Mini App
         if (refCode) {
-            // Store it for the Mini App to read
             localStorage.setItem('payflex_ref', refCode);
         }
         
-        // Redirect to the main app
-        window.location.href = 'https://payflex-miniapp.vercel.app';
+        // Redirect to the Telegram bot which will open the Mini App
+        setTimeout(function() {
+            window.location.href = 'https://t.me/PayFlexEarnBot';
+        }, 1000);
     </script>
-</head>
-<body>
-    <p>Loading PayFlex...</p>
 </body>
 </html>

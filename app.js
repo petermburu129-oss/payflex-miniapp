@@ -41,26 +41,26 @@ async function initApp() {
         let referralCode = localStorage.getItem('payflex_ref');
         if (referralCode) {
             console.log('🔗 Found referral in storage:', referralCode);
-            localStorage.removeItem('payflex_ref'); // Clear it after reading
+            localStorage.removeItem('payflex_ref');
         }
         
         const initData = tg.initDataUnsafe;
         console.log('📱 Init data:', JSON.stringify(initData));
         
+        // Check if opened from Telegram
         if (initData && initData.user) {
             currentUser = initData.user;
-            console.log('👤 User:', currentUser.first_name, currentUser.id);
-            
-            // Also check start_param as backup
+            console.log('👤 User:', currentUser.first_name);
+        } else {
+            // Not from Telegram - use stored ID or show message
+            console.log('⚠️ Not opened from Telegram directly');
+            // Don't show error, just log it
+        }
+        
+        // If we have a user, proceed
+        if (currentUser) {
             if (!referralCode && initData.start_param) {
                 referralCode = initData.start_param;
-                console.log('🔗 Found referral from start_param:', referralCode);
-            }
-            
-            if (referralCode) {
-                console.log('✅ Referral code to process:', referralCode);
-            } else {
-                console.log('ℹ️ No referral code');
             }
             
             await loadUserData(referralCode);
@@ -69,15 +69,13 @@ async function initApp() {
             startTaskTimers();
             startAdWindowTimer();
             setupReferralListener();
-            
-            console.log('✅ App initialized');
         } else {
-            console.error('❌ No user data');
-            showToast('Please open this app from Telegram');
+            // Wait for Telegram WebApp to be ready
+            showToast('Initializing... Please wait');
         }
+        
     } catch (error) {
         console.error('❌ Init error:', error);
-        showToast('Error initializing app');
     }
 }
 
