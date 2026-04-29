@@ -11,62 +11,101 @@
         .box { background: #2a2a2a; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #0088cc; }
         .success { color: #4caf50; }
         .error { color: #f44336; }
+        .info { color: #ff9800; }
     </style>
 </head>
 <body>
     <h1>🔍 Referral Test</h1>
     
     <div class="box">
-        <h3>Init Data:</h3>
+        <h3>1. Init Data:</h3>
         <pre id="init"></pre>
     </div>
     
     <div class="box">
-        <h3>Referral Code Detected:</h3>
+        <h3>2. Referral Code Detected:</h3>
         <pre id="code"></pre>
     </div>
     
     <div class="box">
-        <h3>Status:</h3>
-        <pre id="status">Checking...</pre>
+        <h3>3. Processing:</h3>
+        <pre id="processing">Waiting...</pre>
+    </div>
+    
+    <div class="box">
+        <h3>4. Final Status:</h3>
+        <pre id="status">Waiting for process to complete...</pre>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        const initData = tg.initDataUnsafe;
-        
-        document.getElementById('init').textContent = JSON.stringify(initData, null, 2);
-        
-        let refCode = null;
-        
-        if (initData.start_param) {
-            refCode = initData.start_param;
-        }
-        
-        if (!refCode) {
-            const urlParams = new URLSearchParams(window.location.search);
-            refCode = urlParams.get('startapp');
-        }
-        
-        document.getElementById('code').textContent = refCode || 'NO CODE FOUND';
-        document.getElementById('code').className = refCode ? 'success' : 'error';
-        
-        if (refCode && initData.user) {
-            document.getElementById('status').textContent = 'Processing referral: ' + refCode;
-            processReferral(refCode, initData.user);
-        } else {
-            document.getElementById('status').textContent = 'No referral to process';
-        }
-        
-        async function processReferral(refCode, user) {
+        // Wait for everything to load
+        window.onload = async function() {
+            const tg = window.Telegram.WebApp;
+            const initData = tg.initDataUnsafe;
+            
+            // Show init data
+            document.getElementById('init').textContent = JSON.stringify(initData, null, 2);
+            
+            // Check for referral code
+            let refCode = null;
+            
+            // Method 1: start_param
+            if (initData.start_param) {
+                refCode = initData.start_param;
+                document.getElementById('processing').textContent = 'Found via start_param: ' + refCode;
+            }
+            
+            // Method 2: URL
+            if (!refCode) {
+                const urlParams = new URLSearchParams(window.location.search);
+                refCode = urlParams.get('startapp');
+                if (refCode) {
+                    document.getElementById('processing').textContent = 'Found via URL: ' + refCode;
+                }
+            }
+            
+            // Method 3: Full URL
+            if (!refCode) {
+                const match = window.location.href.match(/startapp=([^&]+)/);
+                if (match) {
+                    refCode = match[1];
+                    document.getElementById('processing').textContent = 'Found via URL match: ' + refCode;
+                }
+            }
+            
+            if (!refCode) {
+                document.getElementById('code').textContent = 'NO CODE FOUND';
+                document.getElementById('code').className = 'error';
+                document.getElementById('status').textContent = 'ERROR: No referral code in URL';
+                document.getElementById('status').className = 'error';
+                return;
+            }
+            
+            document.getElementById('code').textContent = refCode;
+            document.getElementById('code').className = 'success';
+            
+            if (!initData.user) {
+                document.getElementById('status').textContent = 'ERROR: Not opened from Telegram';
+                document.getElementById('status').className = 'error';
+                return;
+            }
+            
+            document.getElementById('processing').textContent += '\nUser: ' + initData.user.first_name + ' (ID: ' + initData.user.id + ')';
+            document.getElementById('processing').textContent += '\nStarting referral process...';
+            
+            // Process referral
             try {
+                document.getElementById('processing').textContent += '\nLooking for referrer with code: ' + refCode;
+                
                 const snapshot = await db.collection('users')
                     .where('referralCode', '==', refCode)
                     .limit(1)
                     .get();
                 
                 if (snapshot.empty) {
-                    document.getElementById('status').textContent = 'ERROR: No user found with code: ' + refCode;
+                    document.getElementById('status').textContent = 'ERROR: No user found with referral code: ' + refCode;
+                    document.getElementById('status').className = 'error';
+                    document.getElementById('processing').textContent += '\nFAILED: Referrer not found';
                     return;
                 }
                 
@@ -74,44 +113,63 @@
                 const referrerId = referrerDoc.id;
                 const referrerData = referrerDoc.data();
                 
-                if (referrerId === user.id.toString()) {
-                    document.getElementById('status').textContent = 'BLOCKED: Self-referral';
+                document.getElementById('processing').textContent += '\nReferrer found: ' + referrerData.firstName;
+                
+                // Check self-referral
+                if (referrerId === initData.user.id.toString()) {
+                    document.getElementById('status').textContent = 'BLOCKED: Cannot refer yourself';
+                    document.getElementById('status').className = 'info';
+                    document.getElementById('processing').textContent += '\nBLOCKED: Self-referral detected';
                     return;
                 }
                 
+                // Check if already referred
+                document.getElementById('processing').textContent += '\nChecking if already referred...';
                 const existing = await db.collection('referrals')
-                    .where('referredId', '==', user.id.toString())
+                    .where('referredId', '==', initData.user.id.toString())
                     .limit(1)
                     .get();
                 
                 if (!existing.empty) {
-                    document.getElementById('status').textContent = 'BLOCKED: Already referred';
+                    document.getElementById('status').textContent = 'BLOCKED: User was already referred by someone else';
+                    document.getElementById('status').className = 'info';
+                    document.getElementById('processing').textContent += '\nBLOCKED: Already referred';
                     return;
                 }
                 
-                await db.collection('referrals').doc(`${referrerId}_${user.id}`).set({
+                // Create referral
+                document.getElementById('processing').textContent += '\nCreating referral record...';
+                await db.collection('referrals').doc(`${referrerId}_${initData.user.id}`).set({
                     referrerId: referrerId,
-                    referredId: user.id.toString(),
-                    referredUsername: user.username || '',
-                    referredFirstName: user.first_name || '',
+                    referredId: initData.user.id.toString(),
+                    referredUsername: initData.user.username || '',
+                    referredFirstName: initData.user.first_name || '',
                     reward: 0.5,
                     status: 'completed',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 
+                document.getElementById('processing').textContent += '\nReferral record created!';
+                
+                // Update referrer
+                document.getElementById('processing').textContent += '\nUpdating referrer balance and count...';
                 await db.collection('users').doc(referrerId).update({
                     balance: firebase.firestore.FieldValue.increment(0.5),
                     referralCount: firebase.firestore.FieldValue.increment(1)
                 });
                 
-                document.getElementById('status').textContent = 'SUCCESS! Referral added. Referrer: ' + referrerData.firstName;
+                document.getElementById('processing').textContent += '\nReferrer updated!';
+                
+                document.getElementById('status').textContent = '✅ SUCCESS! Referral completed!\n\nReferrer: ' + referrerData.firstName + '\nAmount: +$0.50\nNew Referral Count: ' + (referrerData.referralCount + 1);
                 document.getElementById('status').className = 'success';
                 
             } catch (error) {
                 document.getElementById('status').textContent = 'ERROR: ' + error.message;
                 document.getElementById('status').className = 'error';
+                document.getElementById('processing').textContent += '\nERROR: ' + error.message;
+                console.error(error);
             }
-        }
+        };
     </script>
 </body>
 </html>
