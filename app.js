@@ -35,47 +35,32 @@ const AD_WINDOW_HOURS = 3;
 // Initialize app
 async function initApp() {
     try {
-        console.log('🚀 Initializing...');
+        console.log('🚀 Initializing PayFlex...');
+        
+        // CHECK LOCAL STORAGE FOR REFERRAL CODE FIRST
+        let referralCode = localStorage.getItem('payflex_ref');
+        if (referralCode) {
+            console.log('🔗 Found referral in storage:', referralCode);
+            localStorage.removeItem('payflex_ref'); // Clear it after reading
+        }
         
         const initData = tg.initDataUnsafe;
+        console.log('📱 Init data:', JSON.stringify(initData));
         
         if (initData && initData.user) {
             currentUser = initData.user;
+            console.log('👤 User:', currentUser.first_name, currentUser.id);
             
-            // TRY EVERY POSSIBLE WAY TO GET THE REFERRAL CODE
-            let referralCode = null;
-            
-            // Method 1: start_param
-            if (initData.start_param) {
+            // Also check start_param as backup
+            if (!referralCode && initData.start_param) {
                 referralCode = initData.start_param;
+                console.log('🔗 Found referral from start_param:', referralCode);
             }
             
-            // Method 2: Check window.location for tgWebAppStartParam
-            if (!referralCode) {
-                const urlParams = new URLSearchParams(window.location.search);
-                referralCode = urlParams.get('tgWebAppStartParam') || 
-                               urlParams.get('start_param') ||
-                               urlParams.get('startapp');
-            }
-            
-            // Method 3: Check the full URL including hash
-            if (!referralCode) {
-                const fullUrl = window.location.href;
-                const hashMatch = fullUrl.match(/tgWebAppStartParam=([^&]+)/);
-                if (hashMatch) referralCode = hashMatch[1];
-            }
-            
-            // Method 4: Check web_app_data
-            if (!referralCode && tg.initDataUnsafe?.start_param) {
-                referralCode = tg.initDataUnsafe.start_param;
-            }
-            
-            // Save referral code to session storage as backup
             if (referralCode) {
-                sessionStorage.setItem('payflex_ref', referralCode);
+                console.log('✅ Referral code to process:', referralCode);
             } else {
-                // Check if we stored one earlier
-                referralCode = sessionStorage.getItem('payflex_ref');
+                console.log('ℹ️ No referral code');
             }
             
             await loadUserData(referralCode);
@@ -85,11 +70,14 @@ async function initApp() {
             startAdWindowTimer();
             setupReferralListener();
             
+            console.log('✅ App initialized');
         } else {
-            showToast('Please open from Telegram');
+            console.error('❌ No user data');
+            showToast('Please open this app from Telegram');
         }
     } catch (error) {
-        console.error('Error:', error);
+        console.error('❌ Init error:', error);
+        showToast('Error initializing app');
     }
 }
 
@@ -668,7 +656,7 @@ function updateInviteModal() {
     }
     
     // USE THIS FORMAT - Telegram Mini App deep linking
-    const referralLink = `https://t.me/PayFlexEarnBot?start=${userData.referralCode}`;
+    const referralLink = `https://payflex-miniapp.vercel.app/landing.html?startapp=${userData.referralCode}`;
     
     document.getElementById('referralLink').value = referralLink;
     
