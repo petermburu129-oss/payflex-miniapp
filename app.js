@@ -656,7 +656,7 @@ function showTab(tab) {
 function updateInviteModal() {
     if (!userData || !userData.referralCode) return;
     
-    const referralLink = `https://t.me/PayFlex01Bot/PayFlex?startapp=${userData.referralCode}`;
+    const referralLink = `https://t.me/PayFlexEarnBot/PayFlex?startapp=${userData.referralCode}`;
     document.getElementById('referralLink').value = referralLink;
     
     const count = referralCount || userData.referralCount || 0;
