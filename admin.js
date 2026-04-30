@@ -1,5 +1,5 @@
 // Admin Configuration
-const ADMIN_PASSWORD = "PayFlexAdmin2024!"; // CHANGE THIS to your own password
+const ADMIN_PASSWORD = "Kamburu@5318"; // CHANGE THIS to your own password
 const ADMIN_SESSION_KEY = "payflex_admin_session";
 
 // State
